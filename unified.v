@@ -58,41 +58,41 @@ module dm_cache_fsm(
 	input  clk, 					//clock
 	input  rst,					//reset flag
 	input cpu_req_valid,				//campo valido do CPU REQUEST 
-	input cpu_req_rw,                               //campo
-	input [31:0] cpu_req_addr,			//
-	input [31:0] cpu_req_data,                      //
-	input mem_data_ready,                           //
-	input [127:0] mem_data_data,                    //
-	output mem_req_valid,				//
-	output mem_req_rw,                              //
-	output [31:0] mem_req_addr,                     //
-	output [127:0] mem_req_data,                    //
-	output cpu_res_ready,				//
-	output [31:0] cpu_res_data                      //
+	input cpu_req_rw,                               //campo read/write (tipo de pedido) CPU REQUEST
+	input [31:0] cpu_req_addr,			//campo endereço do CPU REQUEST
+	input [31:0] cpu_req_data,                      //campo dado do CPU REQUEST (util na escrita)
+	input mem_data_ready,                           //flag que sinaliza bloqueio no acesso aos dados da memoria
+	input [127:0] mem_data_data,                    //dado propriamente dito da memoria(em blocos de 4 words)
+	output mem_req_valid,				//campo valido da requisição à memoria/MEM REQUEST
+	output mem_req_rw,                              //campo read/write (tipo de pedido) MEM REQUEST
+	output [31:0] mem_req_addr,                     //campo endereço do MEM REQUEST
+	output [127:0] mem_req_data,                    //campo dado do MEM REQUEST
+	output cpu_res_ready,				//flag que sinaliza bloqueio no resultado da cpu
+	output [31:0] cpu_res_data                      //dado para o resultado da cpu
 );                                                      
-	parameter cache_state_idle = 2'b00;		//cache_state_idle recebe 0	
-	parameter cache_state_compare_tag = 2'b01;	//cache_state_compare_tag recebe 1
-	parameter cache_state_allocate = 2'b10;		//cache_state_allocate recebe 2
-	parameter cache_state_write_back = 2'b11;	//cache_state_write_back recebe 3
-	reg [1:0] vstate,  rstate;			//
-	wire tag_read_valid;                            //
-	wire tag_read_dirty;                            //
-	wire [17:0] tag_read_tag;                       //
-	reg tag_write_valid;                            //
-	reg tag_write_dirty;                            //
-	reg [17:0] tag_write_tag;                       //
-	reg tag_req_we;                                 //
-	reg [9:0] tag_req_index;                        //
-	wire [127:0] data_read;                         //
-	reg [127:0] data_read;                          //
-	reg data_req_we;                                //
-	reg [9:0] data_req_index;                       //
-	reg v_cpu_res_ready;                            //
-	reg [31:0] v_cpu_res_data;			//
-	reg v_mem_req_valid;                            //
-	reg v_mem_req_rw;                               //
-	reg [31:0] v_mem_req_addr;                      //
-	reg [127:0] v_mem_req_data;                     //
+	parameter cache_state_idle = 2'b00;		//estado cache_state_idle definido como 0	
+	parameter cache_state_compare_tag = 2'b01;	//estado cache_state_compare_tag definido como 1
+	parameter cache_state_allocate = 2'b10;		//estado cache_state_allocate definido como 2
+	parameter cache_state_write_back = 2'b11;	//estado cache_state_write_back definido como 3
+	reg [1:0] vstate,  rstate;			//registradores de estado
+	wire tag_read_valid;                            //campo valido do banco de tags a ser lida
+	wire tag_read_dirty;                            //campo dirty do banco de tags a ser lida
+	wire [17:0] tag_read_tag;                       //campo tag do banco de tags a ser lida
+	reg tag_write_valid;                            //campo valido do banco de tags a ser escrita
+	reg tag_write_dirty;                            //campo dirty do banco de tags a ser escrita
+	reg [17:0] tag_write_tag;                       //campo tag do banco de tags a ser escrita
+	reg tag_req_we;                                 //flag da requisição à tag (write enable)
+	reg [9:0] tag_req_index;                        //campo indice da requisição à tag
+	wire [127:0] data_read;                         //campo do dado lido no banco de dados
+	reg [127:0] data_write;                         //campo do dado a ser escrito no banco de dados
+	reg data_req_we;                                //flag da requisição aos dados (write enable)
+	reg [9:0] data_req_index;                       //campo indice da requisição aos dados
+	reg v_cpu_res_ready;                            //flag ready da variavel temporaria resultante da cache
+	reg [31:0] v_cpu_res_data;			//campo dados da variavel temporaria resultante da cache
+	reg v_mem_req_valid;                            //campo valido da variavel temporaria da requisição à cache
+	reg v_mem_req_rw;                               //campo read/write da variavel temporaria da requisição à cache
+	reg [31:0] v_mem_req_addr;                      //campo endereço da variavel temporaria da requisição à cache
+	reg [127:0] v_mem_req_data;                     //campo dado da variavel temporaria da requisição à cache
 	assign mem_req_rw = v_mem_req_rw;               //conecta mem_req_rw a saida v_mem_req_rw
 	assign mem_req_addr = v_mem_req_addr;           //conecta mem_req_addr a saida v_mem_req_addr
 	assign mem_req_data = v_mem_req_data;           //conecta mem_req_data a saida v_mem_req_data
@@ -111,17 +111,17 @@ module dm_cache_fsm(
 		data_req_we = 0;			//data_req_we recebe 0
 		data_req_index = cpu_req_addr[13:4];	//data_req_index recebe cpu_req_addr dos bits de 4 a 13 
 		data_write = data_read;			//data_write recebe data_read
-		case(cpu_req_addr[3:2])
-			2'b00:data_write[31:0] = cpu_req_data;			// data_write recebe cpu_req_data dos bits de 0 a 31 
-			2'b01:data_write[63:32] = cpu_req_data;			// data_writr recebe cpu_req_data dos bits de 32 a 63
-			2'b10:data_write[95:64] = cpu_req_data;			// data_write recebe cpu_req_data dos bits de 64 a 95
-			2'b11:data_write[127:96] = cpu_req_data;		// data_write recebe cpu_req_data dos bits de 96 a 127
+		case(cpu_req_addr[3:2])						//dependendo do endereço especificado na requisição da CPU
+			2'b00:data_write[31:0] = cpu_req_data;			// 1ª word de data_write recebe valor lido na requisição da CPU
+			2'b01:data_write[63:32] = cpu_req_data;			// 2ª word de data_write recebe valor lido na requisição da CPU 
+			2'b10:data_write[95:64] = cpu_req_data;			// 3ª word de data_write recebe valor lido na requisição da CPU 
+			2'b11:data_write[127:96] = cpu_req_data;		// 4ª word de data_write recebe valor lido na requisição da CPU 
 		endcase
-		case(cpu_req_addr[3:2])
-			2'b00:v_cpu_res_data = data_read[31:0];			// v_cpu_res_data recebe data_read dos bits de 0 a 31 
-			2'b01:v_cpu_res_data = data_read[63:32];		// v_cpu_res_data recebe data_read dos bits de 32 a 63
-			2'b10:v_cpu_res_data = data_read[95:64];		// v_cpu_res_data recebe data_read dos bits de 64 a 95
-			2'b11:v_cpu_res_data = data_read[127:96];		// v_cpu_res_data recebe data_read dos bits de 96 a 127
+		case(cpu_req_addr[3:2])						//dependendo do endereço especificado na requisição da CPU
+			2'b00:v_cpu_res_data = data_read[31:0];			// v_cpu_res_data recebe 1ª word de data_read
+			2'b01:v_cpu_res_data = data_read[63:32];		// v_cpu_res_data recebe 2ª word de data_read
+			2'b10:v_cpu_res_data = data_read[95:64];		// v_cpu_res_data recebe 3ª word de data_read
+			2'b11:v_cpu_res_data = data_read[127:96];		// v_cpu_res_data recebe 4ª word de data_read
 		endcase
 		v_mem_req_addr = cpu_req_addr;					//v_mem_req_addr recebe cpu_req_addr
 		v_mem_req_data = data_read;					//v_mem_req_data recebe data_read
