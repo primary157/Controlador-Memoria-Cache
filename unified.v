@@ -26,7 +26,7 @@ module dm_cache_tag(
 	input tag_req_we,			//write enable da memoria de tags
 	input [9:0]tag_req_index,		//indice da memoria de tags
 	input tag_write_valid,			//campo valido da memoria de tags de entrada(memoria de escrita)
-	input tag_write_dirty,			//campo dirty da memoria de tags de entrada(memoria de escrita)
+	input tag_write_dirty,			//campo dirty da memoria de tags de entrada(memoria de escrita)		O campo dirty marca se um dado foi sobrescrito(valor modificado) na mem. cache, mas tal modificação ainda não foi aplicada na memoria principal
 	input [17:0] tag_write_tag,		//campo tag da memoria de tags de entrada(memoria de escrita)
 	output tag_read_valid,			//campo valido da memoria de tags de saida(memoria de leitura)
 	output tag_read_dirty,                  //campo dirty da memoria de tags de saida(memoria de leitura)
